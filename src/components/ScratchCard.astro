@@ -1,0 +1,185 @@
+---
+import giftImage from '../assets/gift.png'; // Importa la imagen desde assets
+import { launchConfetti } from '../utils/confetti';
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Rasca y Gana</title>
+		<style>
+			body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				flex-direction: column;
+				height: 100vh;
+				margin: 0;
+				background-color: #f0f0f0;
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+			}
+			#container {
+				position: relative;
+				width: 400px;
+				height: auto;
+			}
+			#canvas {
+				position: absolute;
+				top: 0;
+				left: 0;
+			}
+			#hiddenImage {
+				width: 400px;
+				height: auto;
+				pointer-events: none;
+				-webkit-user-drag: none;
+				display: block;
+				visibility: hidden;
+			}
+			#downloadBtn,
+			#resetBtn {
+				margin-top: 10px;
+				padding: 10px 20px;
+				color: white;
+				border: none;
+				cursor: pointer;
+				border-radius: 5px;
+			}
+			#downloadBtn {
+				background-color: #4caf50;
+				display: none;
+			}
+			#resetBtn {
+				background-color: black;
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container">
+			<img id="hiddenImage" src={giftImage.src} alt="Feliz Navidad" />
+			<canvas id="canvas"></canvas>
+			<button id="downloadBtn">Descargar Imagen</button>
+			<button id="resetBtn">Volver a Raspar</button>
+		</div>
+
+		<!-- Incluir el script de confetti -->
+		<script>
+			import { launchConfetti } from '../utils/confetti';
+
+			// Casting explícito para evitar errores de tipos
+			const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+			const ctx = canvas?.getContext('2d') as CanvasRenderingContext2D;
+			const hiddenImage = document.getElementById('hiddenImage') as HTMLImageElement;
+			const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
+			const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
+
+			if (!canvas || !ctx || !hiddenImage || !downloadBtn) {
+				console.error('Elementos no disponibles');
+			} else {
+				// Coloca aquí el resto del código
+				const width = hiddenImage.width;
+				const height = hiddenImage.height;
+
+				canvas.width = width;
+				canvas.height = height;
+
+				function initCanvas() {
+					ctx.fillStyle = 'gray';
+					ctx.fillRect(0, 0, width, height);
+
+					// Mostrar la imagen después de cubrirla con gris
+					hiddenImage.style.visibility = 'visible';
+				}
+
+				initCanvas();
+
+				let isMouseDown = false;
+
+				canvas.addEventListener('mousedown', () => (isMouseDown = true));
+				canvas.addEventListener('mouseup', () => (isMouseDown = false));
+				canvas.addEventListener('mousemove', scratch);
+
+				function scratch(e: MouseEvent) {
+					if (!isMouseDown || !ctx) return;
+
+					const rect = canvas.getBoundingClientRect();
+					const x = e.clientX - rect.left;
+					const y = e.clientY - rect.top;
+
+					// Configurar pincel granular
+					const brushSize = 40; // Tamaño del pincel
+					const density = 0.75; // Densidad del raspado (0 a 1)
+
+					ctx.globalCompositeOperation = 'destination-out';
+
+					for (let i = 0; i < brushSize * brushSize * density; i++) {
+						const offsetX = Math.random() * brushSize - brushSize / 2;
+						const offsetY = Math.random() * brushSize - brushSize / 2;
+						ctx.beginPath();
+						ctx.arc(x + offsetX, y + offsetY, 1, 0, Math.PI * 2); // Pequeños puntos
+						ctx.fill();
+					}
+
+					checkCompletion();
+				}
+
+				function checkCompletion() {
+					const imageData = ctx.getImageData(0, 0, width, height);
+					const pixels = imageData.data;
+					let transparentPixels = 0;
+
+					for (let i = 3; i < pixels.length; i += 4) {
+						if (pixels[i] === 0) transparentPixels++;
+					}
+
+					const percentage = (transparentPixels / (pixels.length / 4)) * 100;
+					if (percentage > 70) {
+						launchConfetti();
+						// alert('¡Felicidades! Has descubierto la imagen.');
+						downloadBtn.style.display = 'block';
+						resetBtn.style.display = 'block';
+						canvas.removeEventListener('mousemove', scratch);
+
+						// Eliminar el raspado
+						canvas.removeEventListener('mousemove', scratch);
+						ctx.clearRect(0, 0, width, height); // Limpia el canvas
+					}
+				}
+
+				// Descargar imagen
+				downloadBtn.addEventListener('click', () => {
+					const link = document.createElement('a');
+					link.href = hiddenImage.src;
+					link.download = 'Feliz_Navidad.png';
+					link.click();
+				});
+
+				// Volver a raspar
+				resetBtn.addEventListener('click', () => {
+					// Restaurar canvas
+					initCanvas();
+
+					// **1. Reiniciar el estado de píxeles transparentes**
+					isMouseDown = false; // Reinicia el estado del mouse presionado
+					ctx.globalCompositeOperation = 'source-over'; // Restaurar modo normal antes de pintar
+					ctx.fillStyle = 'gray';
+					ctx.fillRect(0, 0, width, height); // Rellenar el canvas con gris nuevamente
+					ctx.globalCompositeOperation = 'destination-out'; // Restaurar el modo de borrado
+
+					// **2. Volver a habilitar el evento de raspado**
+					canvas.addEventListener('mousemove', scratch);
+
+					// **3. Ocultar botones**
+					downloadBtn.style.display = 'none';
+					resetBtn.style.display = 'none';
+				});
+			}
+		</script>
+	</body>
+</html>
